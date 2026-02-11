@@ -7,11 +7,17 @@ export const connectDB = async () => {
       console.warn("Review your .env file: MONGO_URI is missing or contains placeholders.");
     }
 
-    const conn = await mongoose.connect(mongoURI || 'mongodb://localhost:27017/deepdetect', {
-      serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of 30s
-    });
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-    return true;
+    try {
+      const conn = await mongoose.connect(mongoURI!, {
+        serverSelectionTimeoutMS: 5000,
+      });
+      console.log(`MongoDB Connected: ${conn.connection.host}`);
+      return true;
+    } catch (innerError) {
+      // Explicitly catch the connection error
+      throw innerError;
+    }
+
   } catch (error) {
     console.warn(`\n*** MongoDB Connection Failed ***`);
     console.warn(`The server will run in "Offline Mode". Data will not be saved persistently.`);
@@ -19,3 +25,7 @@ export const connectDB = async () => {
     return false;
   }
 };
+
+mongoose.connection.on('error', (err) => {
+  console.warn('MongoDB connection error:', err);
+});

@@ -16,8 +16,9 @@ const Auth: React.FC = () => {
         setError('');
         setLoading(true);
         try {
+            const apiBase = import.meta.env.VITE_API_URL || ''; // Empty string for relative path in prod, or localhost in dev
             const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-            const { data } = await axios.post(`http://localhost:5000${endpoint}`, formData);
+            const { data } = await axios.post(`${apiBase}${endpoint}`, formData);
 
             if (isLogin) {
                 localStorage.setItem('user', JSON.stringify(data));

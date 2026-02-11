@@ -324,7 +324,7 @@ const Dashboard: React.FC = () => {
                                                     paddingAngle={5}
                                                     dataKey="value"
                                                 >
-                                                    {PIE_DATA.map((entry, index) => (
+                                                    {PIE_DATA.map((_, index) => (
                                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                     ))}
                                                 </Pie>

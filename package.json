@@ -1,0 +1,12 @@
+{
+    "name": "deepdetect-ai",
+    "version": "1.0.0",
+    "scripts": {
+        "install-all": "npm install && cd client && npm install && cd ../server && npm install",
+        "vercel-build": "cd client && npm run build"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "dependencies": {}
+}
