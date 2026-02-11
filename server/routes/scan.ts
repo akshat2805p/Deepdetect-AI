@@ -26,6 +26,10 @@ function fileToGenerativePart(buffer: Buffer, mimeType: string) {
 
 // Real Detection Endpoint
 router.post('/detect', upload.single('file'), async (req, res) => {
+    console.log("Received /detect request");
+    console.log("Body:", req.body);
+    console.log("File:", req.file ? req.file.originalname : "No file");
+
     // 1. Setup & Default Mock (Fallback)
     const { userId, fileType, title, author, language, text } = req.body;
     let fileName = req.file ? req.file.originalname : (text ? 'Text Sample' : 'Media Scan');

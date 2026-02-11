@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, CheckCircle, AlertTriangle, FileText, Clock, Settings, Fingerprint, Activity, Loader2, Video, Music, LogOut } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api'; // Use configured API instance
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import jsPDF from 'jspdf';
@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
 
     const fetchHistory = async () => {
         try {
-            const { data } = await axios.get(`http://localhost:5000/api/scan/history/${user._id}`);
+            const { data } = await api.get(`/scan/history/${user._id}`);
             setHistory(data);
         } catch (error) {
             console.error("Failed to fetch history");
@@ -77,7 +77,7 @@ const Dashboard: React.FC = () => {
             }
 
             // Note: Content-Type is set automatically with FormData
-            const { data } = await axios.post('http://localhost:5000/api/scan/detect', formData);
+            const { data } = await api.post('/scan/detect', formData);
             setResult(data);
             fetchHistory();
         } catch (error) {
