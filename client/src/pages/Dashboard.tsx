@@ -89,45 +89,60 @@ const Dashboard: React.FC = () => {
 
     const downloadReport = () => {
         if (!result) return;
-        const doc = new jsPDF();
 
-        // Header
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, 210, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.text("DeepDetect Forensic Report", 14, 25);
-        doc.setFontSize(10);
-        doc.text(`CONFIDENTIAL // ID: ${result._id}`, 14, 35);
+        try {
+            const doc = new jsPDF();
 
-        // Summary
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(14);
-        doc.text("Executive Summary", 14, 50);
-        doc.setFontSize(11);
-        doc.text(`Result: ${result.result}`, 14, 60);
-        doc.text(`Confidence: ${result.confidenceScore}%`, 14, 66);
-        doc.text(`Date: ${new Date().toLocaleString()}`, 14, 72);
+            // Helper to sanitize text for default font (removes emojis/unsupported chars)
+            const safeText = (text: string) => text.replace(/[^\x20-\x7E\n\r]/g, '');
 
-        // Analysis
-        doc.setFontSize(14);
-        doc.text("Forensic Analysis Details", 14, 85);
-        doc.setFontSize(10);
-        const splitText = doc.splitTextToSize(result.details || "No details provided.", 180);
-        doc.text(splitText, 14, 95);
+            // Header
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(22);
+            doc.text("DeepDetect Forensic Report", 14, 25);
+            doc.setFontSize(10);
+            doc.text(`CONFIDENTIAL // ID: ${safeText(result._id)}`, 14, 35);
 
-        // Table
-        if (result.comparative_analysis && result.comparative_analysis.length > 0) {
-            autoTable(doc, {
-                startY: 110,
-                head: [['Metric', 'Observed Value', 'Human Benchmark', 'Status']],
-                body: result.comparative_analysis.map(row => [row.metric, row.observed, row.benchmark, row.status]),
-                theme: 'grid',
-                headStyles: { fillColor: [15, 23, 42] }
-            });
+            // Summary
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(14);
+            doc.text("Executive Summary", 14, 50);
+            doc.setFontSize(11);
+            doc.text(`Result: ${safeText(result.result)}`, 14, 60);
+            doc.text(`Confidence: ${result.confidenceScore}%`, 14, 66);
+            doc.text(`Date: ${new Date().toLocaleString()}`, 14, 72);
+
+            // Analysis
+            doc.setFontSize(14);
+            doc.text("Forensic Analysis Details", 14, 85);
+            doc.setFontSize(10);
+            const detailText = result.details || "No details provided.";
+            const splitText = doc.splitTextToSize(safeText(detailText), 180);
+            doc.text(splitText, 14, 95);
+
+            // Table
+            if (result.comparative_analysis && result.comparative_analysis.length > 0) {
+                autoTable(doc, {
+                    startY: 110,
+                    head: [['Metric', 'Observed Value', 'Human Benchmark', 'Status']],
+                    body: result.comparative_analysis.map(row => [
+                        safeText(row.metric),
+                        safeText(row.observed),
+                        safeText(row.benchmark),
+                        safeText(row.status)
+                    ]),
+                    theme: 'grid',
+                    headStyles: { fillColor: [15, 23, 42] }
+                });
+            }
+
+            doc.save(`Forensic_Report_${safeText(result._id)}.pdf`);
+        } catch (err) {
+            console.error("PDF Generation Error:", err);
+            alert("Failed to generate PDF report. Please try again.");
         }
-
-        doc.save(`Forensic_Report_${result._id}.pdf`);
     };
 
     const PIE_DATA = result ? [
