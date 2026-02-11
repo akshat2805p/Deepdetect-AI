@@ -1,14 +1,10 @@
-# Badges
+<div align="center">
 
-![example badge](https://example.com/badge)
+# 🛡️ DeepDetect AI
+### Advanced Synthetic Media Detection Platform
 
-[![Visit DeepDetect](https://img.shields.io/badge/Visit_DeepDetect-deepdetect--ai.vercel.app-brightgreen)](https://deepdetect-ai.vercel.app)
+[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=22D3EE&center=true&vCenter=true&width=500&lines=Military-Grade+Deepfake+Detection;Powered+by+Gemini+1.5+Vision;Real-time+Forensic+Analysis;Protecting+Digital+Authenticity)](https://git.io/typing-svg)
 
-<<<<<<< HEAD
-# Navigation Links
-- [Home](#)
-- [About](#)
-=======
 <br/>
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-DeepDetect_AI-FF5722?style=for-the-badge&logo=vercel&logoColor=white)](https://deepdetect-ai.vercel.app/)
@@ -136,4 +132,3 @@
 **DeepDetect AI** — *Authenticating Reality in a Synthetic World.*
 
 </div>
->>>>>>> 5820040 (docs: add live demo button)
