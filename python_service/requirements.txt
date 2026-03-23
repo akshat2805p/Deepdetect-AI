@@ -1,0 +1,6 @@
+flask
+flask-cors
+transformers
+torch
+nltk
+google-cloud-vision

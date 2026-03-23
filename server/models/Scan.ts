@@ -22,7 +22,15 @@ const scanSchema = new mongoose.Schema({
         observed: String,
         benchmark: String,
         status: String
-    }]
+    }],
+    details: { type: String },
+    web_detection: {
+        best_guess_labels: [String],
+        exact_matches: [String],
+        partial_matches: [String],
+        visually_similar: [String],
+        pages_with_matching_images: [String]
+    }
 });
 
 export const Scan = mongoose.model('Scan', scanSchema);

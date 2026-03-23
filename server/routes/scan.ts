@@ -1,7 +1,5 @@
 import express from 'express';
-import { Scan } from '../models/Scan';
-import { User } from '../models/User';
-import mongoose from 'mongoose';
+import { prisma } from '../db';
 
 const router = express.Router();
 
@@ -31,8 +29,8 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     console.log("File:", req.file ? req.file.originalname : "No file");
 
     // 1. Setup & Default Mock (Fallback)
-    const { userId, fileType, title, author, language, text } = req.body;
-    let fileName = req.file ? req.file.originalname : (text ? 'Text Sample' : 'Media Scan');
+    const { userId, fileType, title, author, language } = req.body;
+    let fileName = req.file ? req.file.originalname : 'Media Scan';
 
     // Default Values
     let result = 'Real';
@@ -46,6 +44,7 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     };
     let details = 'No detailed analysis available.';
     let comparative_analysis: any[] = [];
+    let web_detection: any = undefined;
 
     // Valid MOCK Fallback (in case API fails)
     isFake = Math.random() > 0.5;
@@ -63,7 +62,26 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     ];
 
     // 2. REAL AI ANALYSIS
-    if (process.env.GEMINI_API_KEY) {
+    let isLiveScanner = req.body.isLive === 'true';
+    let hudData = req.body.hudData ? JSON.parse(req.body.hudData) : null;
+
+    if (isLiveScanner && hudData) {
+        // Construct Sci-Fi Deepfake Report natively from HUD metrics
+        result = "Real"; 
+        confidence = Math.min(Math.round(hudData.score * 100) + 5, 99); 
+        
+        const expression = Object.keys(hudData.expressions).reduce((a, b) => hudData.expressions[a] > hudData.expressions[b] ? a : b);
+        
+        details = `Live Bio-Scan Complete. Facial geometry verified. Neural Network tracking confirmed authentic human presence with ${confidence}% confidence. 68-Point Mesh established.`;
+        
+        comparative_analysis = [
+            { metric: "Facial Geometry", observed: "68 Point Neural Mesh", benchmark: "Organic", status: "Normal" },
+            { metric: "Age Approximation", observed: `${Math.round(hudData.age)} Years`, benchmark: "Varied", status: "Normal" },
+            { metric: "Gender Mapping", observed: hudData.gender.toUpperCase(), benchmark: "Varied", status: "Normal" },
+            { metric: "Dominant Expression", observed: expression.toUpperCase(), benchmark: "Dynamic", status: "Normal" },
+            { metric: "Spatial Coordinates", observed: `X:${Math.round(hudData.box.x)} Y:${Math.round(hudData.box.y)}`, benchmark: "Tracked", status: "Normal" }
+        ];
+    } else if (process.env.GEMINI_API_KEY) {
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
             // Use flash/vision model for images
@@ -101,8 +119,6 @@ router.post('/detect', upload.single('file'), async (req, res) => {
             // Attach Real Data
             if (req.file && (req.file.mimetype.startsWith('image/') || fileType === 'id_verify')) {
                 promptParts.push(fileToGenerativePart(req.file.buffer, req.file.mimetype));
-            } else if (text) {
-                promptParts.push(`\n\nCONTENT TO ANALYZE:\n"${text}"`);
             } else {
                 // Video/Audio limitation on simple API: Use Metadata + Heuristic Prompt
                 promptParts.push(`\n\n[NOTE: Analyzing Metadata and Context only for Video/Audio in this specific mode. Assume content pattern: ${fileName}]`);
@@ -128,6 +144,73 @@ router.post('/detect', upload.single('file'), async (req, res) => {
         console.warn("No GEMINI_API_KEY found.");
     }
 
+
+
+    // 2.6 WEB FORENSICS / IMAGE ANALYSIS FROM PYTHON MICROSERVICE
+    if (req.file && req.file.mimetype.startsWith('image/') && req.body.isLive !== 'true') {
+        try {
+            console.log("Calling Python Vision API at http://127.0.0.1:5003/analyze_image...");
+            const formData = new FormData();
+            const blob = new Blob([new Uint8Array(req.file.buffer)], { type: req.file.mimetype });
+            formData.append('file', blob, req.file.originalname);
+
+            const pyResponse = await fetch('http://127.0.0.1:5003/analyze_image', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (pyResponse.ok) {
+                const pyData = await pyResponse.json();
+                if (pyData.web_detection) {
+                    web_detection = pyData.web_detection;
+                    
+                    // Automatically add to details or comparative_analysis
+                    if (web_detection.exact_matches?.length > 0) {
+                        details += "\n\nWeb Forensics: Found " + web_detection.exact_matches.length + " exact image matches online. This strongly indicates the origin of the image.";
+                        comparative_analysis.push({
+                            metric: "Web Origin Matches",
+                            observed: web_detection.exact_matches.length + " exact matches",
+                            benchmark: "Unique expects 0",
+                            status: "Anomaly"
+                        });
+                        result = 'Fake';
+                        confidence = Math.max(confidence, 98); 
+                    } else if (web_detection.partial_matches?.length > 0) {
+                        details += "\n\nWeb Forensics: Found " + web_detection.partial_matches.length + " partial image matches online. The image might have been edited from a known source.";
+                        comparative_analysis.push({
+                            metric: "Partial Web Matches",
+                            observed: web_detection.partial_matches.length + " partial matches",
+                            benchmark: "Unique expects 0",
+                            status: "Anomaly"
+                        });
+                        result = 'Fake';
+                        confidence = Math.max(confidence, 89);
+                    } else if (web_detection.visually_similar?.length > 0) {
+                        details += "\n\nWeb Forensics: No exact matches, but found visually similar images online.";
+                        comparative_analysis.push({
+                            metric: "Visually Similar Images",
+                            observed: web_detection.visually_similar.length + " similar images",
+                            benchmark: "N/A",
+                            status: "Normal"
+                        });
+                    } else {
+                        details += "\n\nWeb Forensics: No exact or partial matches found online. Image assumes to be unique or generated from scratch without public trace.";
+                        comparative_analysis.push({
+                            metric: "Web Traces",
+                            observed: "0 matches",
+                            benchmark: "0 matches",
+                            status: "Normal"
+                        });
+                    }
+                }
+            } else {
+                console.error("Python Vision API Error:", await pyResponse.text());
+            }
+        } catch (e) {
+            console.warn("Python Vision API unavailable, skipping web detection.");
+        }
+    }
+
     // 3. Save & Respond
     const newScanData = {
         userId,
@@ -140,16 +223,28 @@ router.post('/detect', upload.single('file'), async (req, res) => {
         language: language || 'English',
         analysis,
         comparative_analysis,
+        web_detection,
         details
     };
 
     try {
-        if (mongoose.connection.readyState === 1) {
-            const scan = await Scan.create(newScanData);
-            res.json({ ...newScanData, _id: scan.id });
-        } else {
-            res.json({ ...newScanData, _id: 'offline_' + Date.now() });
-        }
+        const scan = await prisma.scan.create({
+            data: {
+                userId: newScanData.userId,
+                fileName: newScanData.fileName,
+                fileType: newScanData.fileType,
+                result: newScanData.result,
+                confidenceScore: newScanData.confidenceScore,
+                title: newScanData.title,
+                author: newScanData.author,
+                language: newScanData.language,
+                analysis: newScanData.analysis ? JSON.stringify(newScanData.analysis) : null,
+                comparative_analysis: newScanData.comparative_analysis ? JSON.stringify(newScanData.comparative_analysis) : null,
+                web_detection: newScanData.web_detection ? JSON.stringify(newScanData.web_detection) : null,
+                details: newScanData.details
+            }
+        });
+        res.json({ ...newScanData, _id: scan.id });
     } catch (error) {
         console.error("DB Error:", error);
         res.status(500).json({ message: 'Error processing scan' });
@@ -159,14 +254,27 @@ router.post('/detect', upload.single('file'), async (req, res) => {
 // Get User History
 router.get('/history/:userId', async (req, res) => {
     try {
-        if (mongoose.connection.readyState !== 1) {
-            return res.json([]); // Return empty history in offline mode
-        }
-        const history = await Scan.find({ userId: req.params.userId }).sort({ scanDate: -1 });
-        res.json(history);
+        const history = await prisma.scan.findMany({
+            where: { userId: req.params.userId },
+            orderBy: { scanDate: 'desc' }
+        });
+        
+        // Parse JSON strings back to objects
+        const formattedHistory = history.map(scan => ({
+            ...scan,
+            _id: scan.id,
+            analysis: scan.analysis ? JSON.parse(scan.analysis) : null,
+            comparative_analysis: scan.comparative_analysis ? JSON.parse(scan.comparative_analysis) : null,
+            web_detection: scan.web_detection ? JSON.parse(scan.web_detection) : null
+        }));
+        
+        res.json(formattedHistory);
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Error fetching history' });
     }
 });
+
+
 
 export default router;

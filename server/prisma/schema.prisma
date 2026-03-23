@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // We use SQLite for local testing. Change this to "postgresql" or "mysql"
+  // when connecting to Google Cloud SQL and update the DATABASE_URL in .env.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  // Relation to scans
+  scans     Scan[]
+}
+
+model Scan {
+  id               String   @id @default(cuid())
+  userId           String
+  fileName         String
+  fileType         String
+  result           String
+  confidenceScore  Float
+  scanDate         DateTime @default(now())
+  title            String?
+  author           String?
+  language         String?
+  
+  // JSON fields for complex objects
+  analysis             String?  // Stored as JSON string due to SQLite, change to Json for Postgres
+  comparative_analysis String?  // Stored as JSON string
+  details              String?
+  web_detection        String?  // Stored as JSON string
+
+  // Relation mapping
+  user             User     @relation(fields: [userId], references: [id])
+}

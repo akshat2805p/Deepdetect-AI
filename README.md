@@ -15,9 +15,9 @@
 
 [![React](https://img.shields.io/badge/Frontend-React_18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Node](https://img.shields.io/badge/Backend-Node.js_20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![Python](https://img.shields.io/badge/Microservice-Python_Flask-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://flask.palletsprojects.com/)
 [![Gemini](https://img.shields.io/badge/AI_Model-Gemini_1.5_Flash-8E75B2?style=for-the-badge&logo=googlebard&logoColor=white)](https://deepmind.google/technologies/gemini/)
-[![Type](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Database](https://img.shields.io/badge/Database-MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 
 <br/>
 
@@ -33,15 +33,17 @@
 ---
 
 ## 🚀 Overview
-**DeepDetect AI** is a state-of-the-art SaaS platform designed to combat the rising threat of synthetic media. Utilizing the power of **Google's Gemini 1.5 Flash Vision Model**, it provides instantaneous, high-accuracy analysis of images and text to determine authenticity.
+**DeepDetect AI** is a state-of-the-art SaaS platform designed to combat the rising threat of synthetic media. Utilizing the power of **Google's Gemini 1.5 Flash Vision Model** and an intelligent **Google Cloud Vision (Python Microservice)**, it provides instantaneous, high-accuracy analysis of images and text to determine authenticity, alongside deep web matching detection.
 
 ## ✨ Features
 -   **🔍 Multi-Modal Detection**: Analyzes Images, Text, and ID Documents.
 -   **⚡ Real-Time Analysis**: Get results in milliseconds with edge-optimized processing.
+-   **🌐 Web Detection & Reverse Search**: Cross-references imagery with the live web using Google Cloud Vision.
+-   **👤 Biometric Face Tracking**: Live facial feature recognition using `face-api.js` for neural scans.
 -   **📊 Advanced Forensics**: Detailed breakdown of Perplexity, Burstiness, and Error Level Analysis (ELA).
--   **🔐 Bank-Grade Security**: Encrypted user sessions and secure file handling.
+-   **🔐 Bank-Grade Security**: Encrypted user sessions and secure data persistence using Prisma with SQL setups.
 -   **📈 Visual Analytics**: Interactive charts and forensic reports (PDF Export capable).
--   **💎 Premium UI**: Glassmorphism design with `framer-motion` animations.
+-   **💎 Premium UI**: Solid royal aesthetic designed with `framer-motion` entrance animations and micro-interactions.
 
 ---
 
@@ -50,21 +52,27 @@
 ### **Frontend**
 | Tech | Description |
 | :--- | :--- |
-| **React + Vite** | High-performance UI rendering. |
-| **TypeScript** | Type-safe development. |
-| **Tailwind CSS** | Utility-first styling with custom glassmorphism components. |
+| **React + Vite** | High-performance UI rendering framework. |
+| **TypeScript** | Type-safe development environment. |
+| **Tailwind CSS** | Utility-first styling with premium desktop-optimized bespoke components. |
 | **Framer Motion** | Cinematic entrance animations and micro-interactions. |
-| **Lucide React** | Modern, consistent iconography. |
-| **Recharts** | Data visualization for forensic metrics. |
+| **face-api.js** | In-browser live face detection for biometric neural scanning. |
+| **Lucide React** | Modern, consistent iconography for a sleek look. |
+| **Recharts / jsPDF** | Data visualization for forensic metrics & PDF export capabilities. |
 
 ### **Backend**
 | Tech | Description |
 | :--- | :--- |
-| **Node.js + Express**| Robust REST API architecture. |
-| **Google Gemini API** | Connects to `gemini-1.5-flash` for multimodal inference. |
-| **Multer** | Secure file upload handling. |
-| **MongoDB** | NoSQL database for storing user scans and history. |
-| **JWT** | Secure stateless authentication. |
+| **Node.js + Express**| Robust REST API architecture handling core business logic. |
+| **Prisma ORM** | Next-generation Object-Relational Mapper (SQLite for Dev / Google Cloud SQL for Production). |
+| **Google Gemini API** | Connects directly to `gemini-1.5-flash` for multimodal inference. |
+| **Multer** | Secure and performant file upload handling interceptor. |
+
+### **Microservices (Python)**
+| Tech | Description |
+| :--- | :--- |
+| **Python Flask** | Lightweight microservice handling advanced image operations (Port 5003). |
+| **Google Cloud Vision** | Performs reverse-image parsing to fetch web detection best-guess labels and partial/exact image occurrences online. |
 
 ---
 
@@ -72,7 +80,7 @@
 
 ### **1. Secure Authentication**
 *Split-screen design with holographic HUD visuals and military-grade security aesthetic.*
-![Login](images/Login/Signup%20page.png)
+![Login](images/Login/mainpage.png)
 
 ### **2. Upload & Scan**
 *Drag-and-drop interface supporting various file formats with instant preview.*
@@ -96,8 +104,9 @@
 
 ### Prerequisites
 -   Node.js (v18+)
--   MongoDB Instance
+-   Python 3.9+
 -   Google Gemini API Key
+-   Google Cloud Platform Account & Database Setup
 
 ### Steps
 
@@ -107,22 +116,31 @@
     cd deepdetect-ai
     ```
 
-2.  **Server Setup**
+2.  **Server Setup (Node.js)**
     ```bash
     cd server
     npm install
-    # Create .env file with GEMINI_API_KEY and MONGO_URI
-    npm run start
+    # Create .env file with GEMINI_API_KEY and DATABASE_URL
+    npx prisma generate
+    npx prisma db push
+    npm run dev
     ```
 
-3.  **Client Setup**
+3.  **Microservice Setup (Python)**
+    ```bash
+    cd python_service
+    pip install -r requirements.txt
+    python app.py
+    ```
+
+4.  **Client Setup (React)**
     ```bash
     cd client
     npm install
     npm run dev
     ```
 
-4.  **Access**
+5.  **Access**
     Open `http://localhost:5173` to view the application.
 
 ---
