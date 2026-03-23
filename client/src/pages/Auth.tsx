@@ -28,6 +28,7 @@ const Auth: React.FC = () => {
  setError('Account created! Please log in.');
  setLoading(false);
  }
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
  } catch (err: any) {
  setError(err.response?.data?.message || 'Authentication failed');
  setLoading(false);
