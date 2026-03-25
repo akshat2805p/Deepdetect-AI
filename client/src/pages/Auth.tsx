@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Lock, Mail, User, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import api from '../services/api';
 
@@ -11,6 +11,23 @@ const Auth: React.FC = () => {
  const navigate = useNavigate();
  const [error, setError] = useState('');
  const [loading, setLoading] = useState(false);
+
+ const resolveAuthError = (err: unknown): string => {
+ if (axios.isAxiosError(err)) {
+ const typedError = err as AxiosError<{ message?: string }>;
+ const serverMessage = typedError.response?.data?.message;
+ if (serverMessage) return serverMessage;
+
+ const configuredApiHost = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+ const apiHost = configuredApiHost && configuredApiHost.length > 0 ? configuredApiHost : window.location.origin;
+
+ return typedError.response?.status
+ ? `Authentication failed (${typedError.response.status})`
+ : `Cannot reach API server at ${apiHost}. Please start backend on port 5002.`;
+ }
+
+ return 'Authentication failed';
+ };
 
  const handleSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
@@ -31,19 +48,10 @@ const Auth: React.FC = () => {
  } else {
  setIsLogin(true); // Switch to login view after signup
  setError('Account created! Please log in.');
- setLoading(false);
  }
  } catch (err: unknown) {
-  if (axios.isAxiosError(err)) {
-   const serverMessage = err.response?.data?.message as string | undefined;
-   const apiHost = import.meta.env.VITE_API_URL || window.location.origin;
-   const fallbackMessage = err.response?.status
-    ? `Authentication failed (${err.response.status})`
-    : `Cannot reach API server at ${apiHost}. Please start backend on port 5002.`;
-   setError(serverMessage || fallbackMessage);
-  } else {
-   setError('Authentication failed');
-  }
+  setError(resolveAuthError(err));
+ } finally {
   setLoading(false);
  }
  };
