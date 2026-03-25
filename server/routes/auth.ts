@@ -6,7 +6,7 @@ import { fallbackStore } from '../utils/fallbackStore';
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body ?? {};
     try {
         const trimmedName = typeof name === 'string' ? name.trim() : '';
         const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : '';
@@ -26,7 +26,13 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const hashedPassword = hashPassword(rawPassword);
+        let hashedPassword = '';
+        try {
+            hashedPassword = hashPassword(rawPassword);
+        } catch (error) {
+            console.error("Password Hash Error:", error);
+            return res.status(400).json({ message: 'Invalid password format' });
+        }
         let user;
         try {
             user = await prisma.user.create({
@@ -57,7 +63,7 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password } = req.body ?? {};
     try {
         const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : '';
         const rawPassword = typeof password === 'string' ? password : '';
@@ -76,13 +82,27 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ message: 'No account found for this email' });
         }
 
-        const isValidPassword = verifyPassword(rawPassword, user.password);
+        let isValidPassword = false;
+        try {
+            const storedPassword = typeof user.password === 'string' ? user.password : '';
+            isValidPassword = verifyPassword(rawPassword, storedPassword);
+        } catch (error) {
+            console.error("Password Verify Error:", error);
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
         if (!isValidPassword) {
             return res.status(401).json({ message: 'Incorrect password' });
         }
 
-        if (!isHashedPassword(user.password)) {
-            const updatedPassword = hashPassword(rawPassword);
+        const storedPassword = typeof user.password === 'string' ? user.password : '';
+        if (!isHashedPassword(storedPassword)) {
+            let updatedPassword = '';
+            try {
+                updatedPassword = hashPassword(rawPassword);
+            } catch (error) {
+                console.error("Password Rehash Error:", error);
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
             try {
                 await prisma.user.update({
                     where: { id: user.id },
