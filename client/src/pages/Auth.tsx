@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios, { AxiosError } from 'axios';
 import { Lock, Mail, User, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
-import api from '../services/api';
+import api, { getApiHostLabel } from '../services/api';
 
 const Auth: React.FC = () => {
  const [isLogin, setIsLogin] = useState(true);
@@ -18,12 +18,11 @@ const Auth: React.FC = () => {
  const serverMessage = typedError.response?.data?.message;
  if (serverMessage) return serverMessage;
 
- const configuredApiHost = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
- const apiHost = configuredApiHost && configuredApiHost.length > 0 ? configuredApiHost : window.location.origin;
+ const apiHost = getApiHostLabel();
 
  return typedError.response?.status
  ? `Authentication failed (${typedError.response.status})`
- : `Cannot reach API server at ${apiHost}. Please start backend on port 5002.`;
+ : `Cannot reach API server at ${apiHost}.`;
  }
 
  return 'Authentication failed';
