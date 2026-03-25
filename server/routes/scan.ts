@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../db';
+import { fallbackStore } from '../utils/fallbackStore';
 
 const router = express.Router();
 
@@ -228,23 +229,44 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     };
 
     try {
-        const scan = await prisma.scan.create({
-            data: {
+        let scanId = '';
+        try {
+            const scan = await prisma.scan.create({
+                data: {
+                    userId: newScanData.userId,
+                    fileName: newScanData.fileName,
+                    fileType: newScanData.fileType,
+                    result: newScanData.result,
+                    confidenceScore: newScanData.confidenceScore,
+                    title: newScanData.title,
+                    author: newScanData.author,
+                    language: newScanData.language,
+                    analysis: newScanData.analysis ? JSON.stringify(newScanData.analysis) : null,
+                    comparative_analysis: newScanData.comparative_analysis ? JSON.stringify(newScanData.comparative_analysis) : null,
+                    web_detection: newScanData.web_detection ? JSON.stringify(newScanData.web_detection) : null,
+                    details: newScanData.details
+                }
+            });
+            scanId = scan.id;
+        } catch {
+            const memoryScan = fallbackStore.createScan({
                 userId: newScanData.userId,
                 fileName: newScanData.fileName,
                 fileType: newScanData.fileType,
                 result: newScanData.result,
                 confidenceScore: newScanData.confidenceScore,
-                title: newScanData.title,
-                author: newScanData.author,
-                language: newScanData.language,
+                title: newScanData.title || 'Untitled',
+                author: newScanData.author || 'Anonymous',
+                language: newScanData.language || 'English',
                 analysis: newScanData.analysis ? JSON.stringify(newScanData.analysis) : null,
                 comparative_analysis: newScanData.comparative_analysis ? JSON.stringify(newScanData.comparative_analysis) : null,
                 web_detection: newScanData.web_detection ? JSON.stringify(newScanData.web_detection) : null,
-                details: newScanData.details
-            }
-        });
-        res.json({ ...newScanData, _id: scan.id });
+                details: newScanData.details || 'No details available.'
+            });
+            scanId = memoryScan.id;
+        }
+
+        res.json({ ...newScanData, _id: scanId });
     } catch (error) {
         console.error("DB Error:", error);
         res.status(500).json({ message: 'Error processing scan' });
@@ -254,10 +276,15 @@ router.post('/detect', upload.single('file'), async (req, res) => {
 // Get User History
 router.get('/history/:userId', async (req, res) => {
     try {
-        const history = await prisma.scan.findMany({
-            where: { userId: req.params.userId },
-            orderBy: { scanDate: 'desc' }
-        });
+        let history;
+        try {
+            history = await prisma.scan.findMany({
+                where: { userId: req.params.userId },
+                orderBy: { scanDate: 'desc' }
+            });
+        } catch {
+            history = fallbackStore.listScansByUser(req.params.userId);
+        }
         
         // Parse JSON strings back to objects
         const formattedHistory = history.map(scan => ({

@@ -9,7 +9,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-DeepDetect_AI-FF5722?style=for-the-badge&logo=vercel&logoColor=white)](https://deepdetect-ai.vercel.app/)
 
-![HomePage](images/Homepage.png)
+
 
 <br/>
 
@@ -120,7 +120,7 @@
     ```bash
     cd server
     npm install
-    # Create .env file with GEMINI_API_KEY and DATABASE_URL
+    cp .env.example .env
     npx prisma generate
     npx prisma db push
     npm run dev
@@ -137,11 +137,38 @@
     ```bash
     cd client
     npm install
+    cp .env.example .env.local
     npm run dev
     ```
 
 5.  **Access**
     Open `http://localhost:5173` to view the application.
+
+---
+
+## ☁️ Deploy (GitHub + Vercel)
+
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "chore: production deploy fixes"
+   git push origin main
+   ```
+
+2. **Import to Vercel**
+   - Framework preset: **Other**
+   - Root: repository root (this project uses root `vercel.json`)
+
+3. **Set Vercel Environment Variables**
+   - `DATABASE_URL` (required for Prisma)
+   - `GEMINI_API_KEY` (optional but recommended for real AI analysis)
+
+4. **Redeploy**
+   - Trigger a new deployment from Vercel dashboard after setting env vars.
+
+### Notes
+- Frontend calls `/api/*` and is routed to the Node API by `vercel.json`.
+- If database access is unavailable, API now uses an in-memory fallback so auth/scan endpoints still respond (non-persistent).
 
 ---
 

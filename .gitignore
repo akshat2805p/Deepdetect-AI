@@ -32,4 +32,8 @@ yarn-error.log*
 
 # GCP Service Account Keys
 vision-key.json
-*.json
+python_service/vision-key.json
+server/prisma/dev.db
+
+# Vercel local project metadata
+.vercel/

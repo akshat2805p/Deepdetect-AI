@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Lock, Mail, User, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
+import api from '../services/api';
 
 const Auth: React.FC = () => {
  const [isLogin, setIsLogin] = useState(true);
@@ -16,9 +17,13 @@ const Auth: React.FC = () => {
  setError('');
  setLoading(true);
  try {
- const apiBase = import.meta.env.VITE_API_URL || ''; // Empty string for relative path in prod, or localhost in dev
- const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
- const { data } = await axios.post(`${apiBase}${endpoint}`, formData);
+ const endpoint = isLogin ? '/auth/login' : '/auth/register';
+ const payload = {
+ name: formData.name.trim(),
+ email: formData.email.trim(),
+ password: formData.password,
+ };
+ const { data } = await api.post(endpoint, payload);
 
  if (isLogin) {
  localStorage.setItem('user', JSON.stringify(data));
@@ -29,8 +34,16 @@ const Auth: React.FC = () => {
  setLoading(false);
  }
  } catch (err: unknown) {
-  const e = err as { response?: { data?: { message?: string } } };
-  setError(e.response?.data?.message || 'Authentication failed');
+  if (axios.isAxiosError(err)) {
+   const serverMessage = err.response?.data?.message as string | undefined;
+   const apiHost = import.meta.env.VITE_API_URL || window.location.origin;
+   const fallbackMessage = err.response?.status
+    ? `Authentication failed (${err.response.status})`
+    : `Cannot reach API server at ${apiHost}. Please start backend on port 5002.`;
+   setError(serverMessage || fallbackMessage);
+  } else {
+   setError('Authentication failed');
+  }
   setLoading(false);
  }
  };

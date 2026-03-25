@@ -6,16 +6,11 @@ import { connectDB } from './db';
 dotenv.config();
 
 const app = express();
-const PORT = 5002; // Force new port for stability check
+const PORT = Number(process.env.PORT || 5002);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Keep process alive to prevent exit on DB failure (Offline Mode)
-setInterval(() => {
-    // Heartbeat
-}, 10000);
 
 const startServer = () => {
     try {

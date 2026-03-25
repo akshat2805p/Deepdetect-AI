@@ -3,6 +3,9 @@
     "version": "1.0.0",
     "scripts": {
         "install-all": "npm install && cd client && npm install && cd ../server && npm install",
+        "build:client": "cd client && npm run build",
+        "typecheck:server": "cd server && npx tsc --noEmit",
+        "verify": "npm run typecheck:server && npm run build:client",
         "vercel-build": "cd client && npm run build"
     },
     "engines": {

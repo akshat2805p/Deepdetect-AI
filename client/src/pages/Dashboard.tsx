@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, CheckCircle, AlertTriangle, FileText, Clock, Settings, Fingerprint, Activity, Loader2, Video, Music, LogOut, Globe } from 'lucide-react';
-import * as faceapi from '@vladmandic/face-api';
 import api from '../services/api'; // Use configured API instance
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type * as FaceApiType from '@vladmandic/face-api';
 
 interface ScanResult {
  _id: string;
@@ -44,6 +42,8 @@ const Dashboard: React.FC = () => {
 
  const videoRef = React.useRef<HTMLVideoElement>(null);
  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+ const animationFrameRef = useRef<number | null>(null);
+ const faceApiRef = useRef<typeof FaceApiType | null>(null);
  const [modelsLoaded, setModelsLoaded] = useState(false);
  const [cameraActive, setCameraActive] = useState(false);
  const [cameraZoom, setCameraZoom] = useState(1);
@@ -62,6 +62,15 @@ const Dashboard: React.FC = () => {
  const user = JSON.parse(localStorage.getItem('user') || '{}');
  const navigate = useNavigate();
 
+ const fetchHistory = useCallback(async () => {
+ try {
+ const { data } = await api.get(`/scan/history/${user._id}`);
+ setHistory(data);
+ } catch (error) {
+ console.error("Failed to fetch history", error);
+ }
+ }, [user._id]);
+
  useEffect(() => {
  if (!user._id) {
  navigate('/login');
@@ -73,6 +82,10 @@ const Dashboard: React.FC = () => {
  useEffect(() => {
     const loadModels = async () => {
         try {
+            if (!faceApiRef.current) {
+                faceApiRef.current = await import('@vladmandic/face-api');
+            }
+            const faceapi = faceApiRef.current;
             await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
             await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
             await faceapi.nets.ageGenderNet.loadFromUri('/models');
@@ -87,7 +100,6 @@ const Dashboard: React.FC = () => {
 
  useEffect(() => {
     let stream: MediaStream | null = null;
-    let requestAnimFrameId: number = 0;
 
     const startVideo = async () => {
         try {
@@ -106,7 +118,10 @@ const Dashboard: React.FC = () => {
             stream.getTracks().forEach(track => track.stop());
             setCameraActive(false);
         }
-        if (requestAnimFrameId) cancelAnimationFrame(requestAnimFrameId);
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
     };
 
     if (activeTab === 'live_camera') {
@@ -120,7 +135,8 @@ const Dashboard: React.FC = () => {
 
  const handleVideoPlay = () => {
     const detectFace = async () => {
-        if (videoRef.current && canvasRef.current && modelsLoaded && cameraActive) {
+        const faceapi = faceApiRef.current;
+        if (videoRef.current && canvasRef.current && modelsLoaded && cameraActive && faceapi) {
             const detections = await faceapi.detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
                 .withFaceLandmarks()
                 .withFaceExpressions()
@@ -136,7 +152,21 @@ const Dashboard: React.FC = () => {
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 
                 if (resizedDetections.length > 0) {
-                    setHudData(resizedDetections[0]);
+                    const topDetection = resizedDetections[0];
+                    setHudData({
+                        gender: topDetection.gender,
+                        age: topDetection.age,
+                        expressions: Object.fromEntries(
+                            Object.entries(topDetection.expressions).map(([key, value]) => [key, Number(value)])
+                        ),
+                        detection: {
+                            score: topDetection.detection.score,
+                            box: {
+                                x: topDetection.detection.box.x,
+                                y: topDetection.detection.box.y
+                            }
+                        }
+                    });
                 } else {
                     setHudData(null);
                 }
@@ -147,20 +177,10 @@ const Dashboard: React.FC = () => {
             }
         }
         if (activeTab === 'live_camera') {
-            requestAnimFrameId = requestAnimationFrame(detectFace);
+            animationFrameRef.current = requestAnimationFrame(detectFace);
         }
     };
     detectFace();
- };
-
- const fetchHistory = async () => {
- try {
- const { data } = await api.get(`/scan/history/${user._id}`);
- setHistory(data);
- } catch (error) {
- // error is ignored
- console.error("Failed to fetch history");
- }
  };
 
  const handleScan = async () => {
@@ -219,7 +239,11 @@ const Dashboard: React.FC = () => {
  if (!result) return;
 
  try {
- const doc = new jsPDF();
+ const jsPDFModule = import('jspdf');
+ const autoTableModule = import('jspdf-autotable');
+
+ Promise.all([jsPDFModule, autoTableModule]).then(([jspdf, autotable]) => {
+ const doc = new jspdf.default();
 
  // Helper to sanitize text for default font (removes emojis/unsupported chars)
  const safeText = (text: string) => text.replace(/[^\x20-\x7E\n\r]/g, '');
@@ -252,7 +276,7 @@ const Dashboard: React.FC = () => {
 
  // Table
  if (result.comparative_analysis && result.comparative_analysis.length > 0) {
- autoTable(doc, {
+ autotable.default(doc, {
  startY: 110,
  head: [['Metric', 'Observed Value', 'Human Benchmark', 'Status']],
  body: result.comparative_analysis.map(row => [
@@ -267,6 +291,10 @@ const Dashboard: React.FC = () => {
  }
 
  doc.save(`Forensic_Report_${safeText(result._id)}.pdf`);
+ }).catch((err) => {
+ console.error("PDF Generation Error:", err);
+ alert("Failed to generate PDF report. Please try again.");
+ });
  } catch (err) {
  console.error("PDF Generation Error:", err);
  alert("Failed to generate PDF report. Please try again.");
