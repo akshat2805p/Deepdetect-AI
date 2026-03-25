@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { connectDB } from './db';
+import { connectDB, prisma } from './db';
+import type { NextFunction, Request, Response } from 'express';
 
 dotenv.config();
 
@@ -9,27 +10,46 @@ const app = express();
 const PORT = Number(process.env.PORT || 5002);
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
-const startServer = () => {
+app.use(cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+const startServer = async () => {
     try {
+        await connectDB();
         const server = app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
         });
         server.on('error', (err) => {
             console.error('Server error:', err);
         });
+
+        const shutdown = async (signal: string) => {
+            console.log(`Received ${signal}. Shutting down gracefully...`);
+            try {
+                await prisma.$disconnect();
+            } catch (error) {
+                console.error('Prisma disconnect error:', error);
+            } finally {
+                server.close(() => process.exit(0));
+            }
+        };
+
+        process.on('SIGINT', () => void shutdown('SIGINT'));
+        process.on('SIGTERM', () => void shutdown('SIGTERM'));
     } catch (err) {
         console.error('Failed to start server:', err);
+        process.exit(1);
     }
 };
-
-
-
-// Database Connection
-connectDB();
-// console.log("Database connection disabled for stability check.");
 
 // Routes
 import authRoutes from './routes/auth';
@@ -42,7 +62,14 @@ app.get('/', (req, res) => {
     res.send('DeepDetect AI API is running...');
 });
 
-// Middleware and Routes are defined above.
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Unhandled request error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+});
 
 if (require.main === module) {
     startServer();

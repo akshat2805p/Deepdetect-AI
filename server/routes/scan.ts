@@ -13,6 +13,44 @@ import multer from 'multer';
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
+type AnalysisMetrics = {
+    perplexity: number;
+    burstiness: number;
+    similarityScore: number;
+    aiProbability: number;
+};
+
+type ComparativeRow = {
+    metric: string;
+    observed: string;
+    benchmark: string;
+    status: 'Normal' | 'Anomaly';
+};
+
+type WebDetection = {
+    best_guess_labels?: string[];
+    exact_matches?: string[];
+    partial_matches?: string[];
+    visually_similar?: string[];
+    pages_with_matching_images?: string[];
+};
+
+type HudData = {
+    age: number;
+    gender: string;
+    expressions: Record<string, number>;
+    score: number;
+    box: { x: number; y: number };
+};
+
+const parseJsonSafely = <T>(value: string): T | null => {
+    try {
+        return JSON.parse(value) as T;
+    } catch {
+        return null;
+    }
+};
+
 // Helper to convert buffer to Gemini part
 function fileToGenerativePart(buffer: Buffer, mimeType: string) {
     return {
@@ -30,22 +68,35 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     console.log("File:", req.file ? req.file.originalname : "No file");
 
     // 1. Setup & Default Mock (Fallback)
-    const { userId, fileType, title, author, language } = req.body;
+    const { userId, fileType, title, author, language } = req.body ?? {};
+
+    if (typeof userId !== 'string' || userId.trim() === '') {
+        return res.status(400).json({ message: 'userId is required' });
+    }
+    if (typeof fileType !== 'string' || fileType.trim() === '') {
+        return res.status(400).json({ message: 'fileType is required' });
+    }
+
+    const isLiveScanner = req.body?.isLive === 'true';
+    if (!isLiveScanner && !req.file) {
+        return res.status(400).json({ message: 'file is required for non-live scans' });
+    }
+
     let fileName = req.file ? req.file.originalname : 'Media Scan';
 
     // Default Values
     let result = 'Real';
     let confidence = 0;
     let isFake = false;
-    let analysis = {
+    let analysis: AnalysisMetrics = {
         perplexity: 0,
         burstiness: 0,
         similarityScore: 0,
         aiProbability: 0
     };
     let details = 'No detailed analysis available.';
-    let comparative_analysis: any[] = [];
-    let web_detection: any = undefined;
+    let comparative_analysis: ComparativeRow[] = [];
+    let web_detection: WebDetection | undefined = undefined;
 
     // Valid MOCK Fallback (in case API fails)
     isFake = Math.random() > 0.5;
@@ -63,15 +114,19 @@ router.post('/detect', upload.single('file'), async (req, res) => {
     ];
 
     // 2. REAL AI ANALYSIS
-    let isLiveScanner = req.body.isLive === 'true';
-    let hudData = req.body.hudData ? JSON.parse(req.body.hudData) : null;
+    const hudData = typeof req.body?.hudData === 'string'
+        ? parseJsonSafely<HudData>(req.body.hudData)
+        : null;
 
     if (isLiveScanner && hudData) {
         // Construct Sci-Fi Deepfake Report natively from HUD metrics
         result = "Real"; 
         confidence = Math.min(Math.round(hudData.score * 100) + 5, 99); 
-        
-        const expression = Object.keys(hudData.expressions).reduce((a, b) => hudData.expressions[a] > hudData.expressions[b] ? a : b);
+
+        const expressionKeys = Object.keys(hudData.expressions || {});
+        const expression = expressionKeys.length > 0
+            ? expressionKeys.reduce((a, b) => hudData.expressions[a] > hudData.expressions[b] ? a : b)
+            : 'neutral';
         
         details = `Live Bio-Scan Complete. Facial geometry verified. Neural Network tracking confirmed authentic human presence with ${confidence}% confidence. 68-Point Mesh established.`;
         
@@ -88,7 +143,7 @@ router.post('/detect', upload.single('file'), async (req, res) => {
             // Use flash/vision model for images
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            let promptParts: any[] = [];
+            const promptParts: Array<string | ReturnType<typeof fileToGenerativePart>> = [];
 
             // Construct Prompt based on file availability
             const basePrompt = `
@@ -128,11 +183,20 @@ router.post('/detect', upload.single('file'), async (req, res) => {
             const aiResult = await model.generateContent(promptParts);
             const response = await aiResult.response;
             const responseText = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-            const json = JSON.parse(responseText);
+            const json = parseJsonSafely<{
+                result?: string;
+                confidenceScore?: number;
+                analysis?: AnalysisMetrics;
+                comparative_analysis?: ComparativeRow[];
+                details?: string;
+            }>(responseText);
+            if (!json) {
+                throw new Error('Invalid JSON returned by Gemini');
+            }
 
             // Update with Real Results
-            result = json.result;
-            confidence = json.confidenceScore;
+            result = json.result === 'Fake' ? 'Fake' : 'Real';
+            confidence = typeof json.confidenceScore === 'number' ? json.confidenceScore : confidence;
             analysis = json.analysis || analysis;
             details = json.details || details;
             comparative_analysis = json.comparative_analysis || [];
@@ -163,36 +227,40 @@ router.post('/detect', upload.single('file'), async (req, res) => {
             if (pyResponse.ok) {
                 const pyData = await pyResponse.json();
                 if (pyData.web_detection) {
-                    web_detection = pyData.web_detection;
+                    const detected = pyData.web_detection as WebDetection;
+                    web_detection = detected;
+                    const exactMatches = detected.exact_matches ?? [];
+                    const partialMatches = detected.partial_matches ?? [];
+                    const visuallySimilar = detected.visually_similar ?? [];
                     
                     // Automatically add to details or comparative_analysis
-                    if (web_detection.exact_matches?.length > 0) {
-                        details += "\n\nWeb Forensics: Found " + web_detection.exact_matches.length + " exact image matches online. This strongly indicates the origin of the image.";
+                    if (exactMatches.length > 0) {
+                        details += "\n\nWeb Forensics: Found " + exactMatches.length + " exact image matches online. This strongly indicates the origin of the image.";
                         comparative_analysis.push({
                             metric: "Web Origin Matches",
-                            observed: web_detection.exact_matches.length + " exact matches",
+                            observed: exactMatches.length + " exact matches",
                             benchmark: "Unique expects 0",
-                            status: "Anomaly"
+                            status: "Anomaly",
                         });
                         result = 'Fake';
                         confidence = Math.max(confidence, 98); 
-                    } else if (web_detection.partial_matches?.length > 0) {
-                        details += "\n\nWeb Forensics: Found " + web_detection.partial_matches.length + " partial image matches online. The image might have been edited from a known source.";
+                    } else if (partialMatches.length > 0) {
+                        details += "\n\nWeb Forensics: Found " + partialMatches.length + " partial image matches online. The image might have been edited from a known source.";
                         comparative_analysis.push({
                             metric: "Partial Web Matches",
-                            observed: web_detection.partial_matches.length + " partial matches",
+                            observed: partialMatches.length + " partial matches",
                             benchmark: "Unique expects 0",
-                            status: "Anomaly"
+                            status: "Anomaly",
                         });
                         result = 'Fake';
                         confidence = Math.max(confidence, 89);
-                    } else if (web_detection.visually_similar?.length > 0) {
+                    } else if (visuallySimilar.length > 0) {
                         details += "\n\nWeb Forensics: No exact matches, but found visually similar images online.";
                         comparative_analysis.push({
                             metric: "Visually Similar Images",
-                            observed: web_detection.visually_similar.length + " similar images",
+                            observed: visuallySimilar.length + " similar images",
                             benchmark: "N/A",
-                            status: "Normal"
+                            status: "Normal",
                         });
                     } else {
                         details += "\n\nWeb Forensics: No exact or partial matches found online. Image assumes to be unique or generated from scratch without public trace.";
@@ -200,7 +268,7 @@ router.post('/detect', upload.single('file'), async (req, res) => {
                             metric: "Web Traces",
                             observed: "0 matches",
                             benchmark: "0 matches",
-                            status: "Normal"
+                            status: "Normal",
                         });
                     }
                 }
@@ -219,9 +287,9 @@ router.post('/detect', upload.single('file'), async (req, res) => {
         fileType,
         result,
         confidenceScore: confidence,
-        title: title || 'Untitled',
-        author: author || 'Anonymous',
-        language: language || 'English',
+        title: typeof title === 'string' && title.trim() ? title : 'Untitled',
+        author: typeof author === 'string' && author.trim() ? author : 'Anonymous',
+        language: typeof language === 'string' && language.trim() ? language : 'English',
         analysis,
         comparative_analysis,
         web_detection,
@@ -276,7 +344,22 @@ router.post('/detect', upload.single('file'), async (req, res) => {
 // Get User History
 router.get('/history/:userId', async (req, res) => {
     try {
-        let history;
+        let history: Array<{
+            id: string;
+            userId: string;
+            fileName: string;
+            fileType: string;
+            result: string;
+            confidenceScore: number;
+            scanDate: Date;
+            title: string | null;
+            author: string | null;
+            language: string | null;
+            analysis: string | null;
+            comparative_analysis: string | null;
+            web_detection: string | null;
+            details: string | null;
+        }>;
         try {
             history = await prisma.scan.findMany({
                 where: { userId: req.params.userId },
@@ -290,9 +373,9 @@ router.get('/history/:userId', async (req, res) => {
         const formattedHistory = history.map(scan => ({
             ...scan,
             _id: scan.id,
-            analysis: scan.analysis ? JSON.parse(scan.analysis) : null,
-            comparative_analysis: scan.comparative_analysis ? JSON.parse(scan.comparative_analysis) : null,
-            web_detection: scan.web_detection ? JSON.parse(scan.web_detection) : null
+            analysis: scan.analysis ? parseJsonSafely(scan.analysis) : null,
+            comparative_analysis: scan.comparative_analysis ? parseJsonSafely(scan.comparative_analysis) : null,
+            web_detection: scan.web_detection ? parseJsonSafely(scan.web_detection) : null
         }));
         
         res.json(formattedHistory);

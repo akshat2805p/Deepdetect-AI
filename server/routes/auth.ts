@@ -4,6 +4,15 @@ import { hashPassword, isHashedPassword, normalizeEmail, verifyPassword } from '
 import { fallbackStore } from '../utils/fallbackStore';
 
 const router = express.Router();
+const MIN_PASSWORD_LENGTH = 6;
+
+const getUserByEmail = async (email: string) => {
+    try {
+        return await prisma.user.findUnique({ where: { email } });
+    } catch {
+        return fallbackStore.findUserByEmail(email);
+    }
+};
 
 router.post('/register', async (req, res) => {
     const { name, email, password } = req.body ?? {};
@@ -15,13 +24,11 @@ router.post('/register', async (req, res) => {
         if (!trimmedName || !normalizedEmail || !rawPassword) {
             return res.status(400).json({ message: 'Name, email, and password are required' });
         }
-
-        let userExists = null;
-        try {
-            userExists = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-        } catch {
-            userExists = fallbackStore.findUserByEmail(normalizedEmail);
+        if (rawPassword.length < MIN_PASSWORD_LENGTH) {
+            return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
         }
+
+        const userExists = await getUserByEmail(normalizedEmail);
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
@@ -33,7 +40,7 @@ router.post('/register', async (req, res) => {
             console.error("Password Hash Error:", error);
             return res.status(400).json({ message: 'Invalid password format' });
         }
-        let user;
+        let user: { id: string; name: string; email: string };
         try {
             user = await prisma.user.create({
                 data: {
@@ -72,12 +79,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Email and password are required' });
         }
 
-        let user = null;
-        try {
-            user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-        } catch {
-            user = fallbackStore.findUserByEmail(normalizedEmail);
-        }
+        const user = await getUserByEmail(normalizedEmail);
         if (!user) {
             return res.status(401).json({ message: 'No account found for this email' });
         }
