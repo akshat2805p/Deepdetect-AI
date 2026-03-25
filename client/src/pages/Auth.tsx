@@ -22,10 +22,22 @@ const Auth: React.FC = () => {
 
  return typedError.response?.status
  ? `Authentication failed (${typedError.response.status})`
- : `Cannot reach API server at ${apiHost}.`;
+ : `Cannot reach API server at ${apiHost}. If running locally, start server on port 5002.`;
  }
 
  return 'Authentication failed';
+ };
+
+ const postAuthWithFallback = async (endpoint: string, payload: { name: string; email: string; password: string }) => {
+ try {
+ return await api.post(endpoint, payload);
+ } catch (err) {
+ if (axios.isAxiosError(err) && !err.response) {
+ // Retry once against same-origin /api in case env URL is incorrect.
+ return axios.post(`/api${endpoint}`, payload);
+ }
+ throw err;
+ }
  };
 
  const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +51,7 @@ const Auth: React.FC = () => {
  email: formData.email.trim(),
  password: formData.password,
  };
- const { data } = await api.post(endpoint, payload);
+ const { data } = await postAuthWithFallback(endpoint, payload);
 
  if (isLogin) {
  localStorage.setItem('user', JSON.stringify(data));
