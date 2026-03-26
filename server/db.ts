@@ -14,7 +14,7 @@ if (process.env.NODE_ENV !== 'production') {
 export const connectDB = async () => {
   try {
     await prisma.$connect();
-    console.log("Connected to Prisma SQL Database");
+    console.log("Connected to PostgreSQL via Prisma");
     return true;
   } catch (error) {
     console.warn(`\n*** Database Connection Failed ***`);

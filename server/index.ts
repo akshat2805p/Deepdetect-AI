@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { connectDB, prisma } from './db';
 import type { NextFunction, Request, Response } from 'express';
 
 dotenv.config();
@@ -22,43 +21,12 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-const startServer = async () => {
-    try {
-        await connectDB();
-        const server = app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-        server.on('error', (err) => {
-            console.error('Server error:', err);
-        });
-
-        const shutdown = async (signal: string) => {
-            console.log(`Received ${signal}. Shutting down gracefully...`);
-            try {
-                await prisma.$disconnect();
-            } catch (error) {
-                console.error('Prisma disconnect error:', error);
-            } finally {
-                server.close(() => process.exit(0));
-            }
-        };
-
-        process.on('SIGINT', () => void shutdown('SIGINT'));
-        process.on('SIGTERM', () => void shutdown('SIGTERM'));
-    } catch (err) {
-        console.error('Failed to start server:', err);
-        process.exit(1);
-    }
-};
-
 // Routes
-import authRoutes from './routes/auth';
 import scanRoutes from './routes/scan';
 
-app.use('/api/auth', authRoutes);
 app.use('/api/scan', scanRoutes);
 
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
     res.send('DeepDetect AI API is running...');
 });
 
@@ -71,16 +39,30 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     res.status(500).json({ message: 'Internal server error' });
 });
 
+const startServer = () => {
+    const server = app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+
+    server.on('error', (err) => {
+        console.error('Server error:', err);
+    });
+
+    const shutdown = (signal: string) => {
+        console.log(`Received ${signal}. Shutting down gracefully...`);
+        server.close(() => process.exit(0));
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+};
+
 if (require.main === module) {
     startServer();
 } else {
-    // For Vercel/Tests
     console.log("Module loaded via import.");
 }
 
-// Global Error Handlers
-
-// Prevent crash on unhandled rejection
 process.on('unhandledRejection', (err) => {
     console.log('UNHANDLED REJECTION! 💥 Server running in fallback mode.');
     console.log(err);

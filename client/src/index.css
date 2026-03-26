@@ -1,15 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --royal-black: #050505;
+  --royal-gray: #121212;
+  --royal-gold: #D4AF37;
+  --royal-gold-light: #F9E076;
+  --royal-cyan: #00E5FF;
+  --royal-border: #2A2A2A;
+  
+  font-family: 'Inter', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.95);
+  background-color: var(--royal-black);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -21,19 +30,63 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: var(--royal-black);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.05), transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(0, 229, 255, 0.03), transparent 40%);
 }
 
 @layer base {
   html {
-    @apply overflow-x-hidden w-full m-0 p-0;
+    @apply overflow-x-hidden w-full m-0 p-0 scroll-smooth;
   }
   
   body {
-    @apply bg-black text-white selection:bg-yellow-500 selection:text-white overflow-x-hidden w-full min-h-screen m-0 p-0;
-    font-family: 'Inter', sans-serif;
+    @apply bg-black text-white selection:bg-yellow-500/30 selection:text-white overflow-x-hidden w-full min-h-screen m-0 p-0;
   }
 
   h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
     font-family: 'Space Grotesk', sans-serif;
   }
+}
+
+@layer components {
+  .btn-royal {
+    @apply px-6 py-3 rounded-xl font-bold transition-all duration-300 flex items-center gap-2 active:scale-95;
+    background: linear-gradient(135deg, var(--royal-gold), #B8860B);
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
+  }
+
+  .btn-royal:hover {
+    @apply shadow-lg;
+    background: linear-gradient(135deg, var(--royal-gold-light), var(--royal-gold));
+    box-shadow: 0 4px 25px rgba(212, 175, 55, 0.3);
+  }
+
+  .card-royal {
+    @apply bg-neutral-900/50 border border-neutral-800 rounded-3xl p-6 backdrop-blur-xl transition-all duration-500;
+  }
+
+  .card-royal:hover {
+    @apply border-neutral-700 shadow-2xl shadow-black/50;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--royal-black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--royal-border);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333;
 }

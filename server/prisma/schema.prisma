@@ -6,25 +6,22 @@ generator client {
 }
 
 datasource db {
-  // We use SQLite for local testing. Change this to "postgresql" or "mysql"
-  // when connecting to Google Cloud SQL and update the DATABASE_URL in .env.
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   name      String
   email     String   @unique
   password  String
   createdAt DateTime @default(now())
 
-  // Relation to scans
   scans     Scan[]
 }
 
 model Scan {
-  id               String   @id @default(cuid())
+  id               String   @id @default(uuid())
   userId           String
   fileName         String
   fileType         String
@@ -35,12 +32,11 @@ model Scan {
   author           String?
   language         String?
   
-  // JSON fields for complex objects
-  analysis             String?  // Stored as JSON string due to SQLite, change to Json for Postgres
-  comparative_analysis String?  // Stored as JSON string
+  analysis             String?
+  comparative_analysis String?
   details              String?
-  web_detection        String?  // Stored as JSON string
+  web_detection        String?
 
-  // Relation mapping
   user             User     @relation(fields: [userId], references: [id])
 }
+
