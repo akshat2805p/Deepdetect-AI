@@ -6,9 +6,6 @@
 [![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=F59E0B&center=true&vCenter=true&width=600&lines=Military-Grade+Deepfake+Detection;Powered+by+Gemini+1.5+Vision;Real-time+Forensic+Analysis;Protecting+Digital+Authenticity)](https://git.io/typing-svg)
 
 <br/>
-
-[![Live Demo](https://img.shields.io/badge/Live_Demo-DeepDetect_AI-FF5722?style=for-the-badge&logo=vercel&logoColor=white)](https://deepdetect-ai.vercel.app/)
-
 <br/>
 
 [![React](https://img.shields.io/badge/Frontend-React_18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
