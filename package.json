@@ -2,10 +2,15 @@
     "name": "deepdetect-ai",
     "version": "1.0.0",
     "scripts": {
+        "predev": "npm run build:server",
+        "dev": "node scripts/dev.mjs",
+        "dev:client": "cd client && npm run dev",
+        "dev:server": "cd server && npm run dev",
         "install-all": "npm install && cd client && npm install && cd ../server && npm install",
         "build:client": "cd client && npm run build",
+        "build:server": "cd server && npm run build",
         "typecheck:server": "cd server && npx tsc --noEmit",
-        "verify": "npm run typecheck:server && npm run build:client",
+        "verify": "npm run typecheck:server && npm run build:server && npm run build:client",
         "vercel-build": "cd client && npm run build"
     },
     "engines": {

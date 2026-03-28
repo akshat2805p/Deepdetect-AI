@@ -9,7 +9,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Multer for file uploads
 import multer from 'multer';
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: 25 * 1024 * 1024,
+    },
+});
 
 type AnalysisMetrics = {
     perplexity: number;
@@ -59,9 +64,82 @@ function fileToGenerativePart(buffer: Buffer, mimeType: string) {
     };
 }
 
+const supportedMimeTypesByFileType: Record<string, string[]> = {
+    upload: ['image/'],
+    video: ['video/'],
+    audio: ['audio/'],
+    id_verify: ['image/'],
+};
+
+const runSingleFileUpload = (req: express.Request, res: express.Response) => new Promise<void>((resolve, reject) => {
+    upload.single('file')(req, res, (error) => {
+        if (!error) {
+            resolve();
+            return;
+        }
+        reject(error);
+    });
+});
+
+const getUploadErrorMessage = (error: unknown) => {
+    if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return 'Uploaded file is too large. Maximum supported size is 25MB.';
+        }
+        return `Upload failed: ${error.message}`;
+    }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return 'Upload failed due to an unknown error.';
+};
+
+const isMimeTypeAllowed = (fileType: string, mimeType: string) => {
+    const allowedPrefixes = supportedMimeTypesByFileType[fileType];
+    if (!allowedPrefixes || allowedPrefixes.length === 0) {
+        return true;
+    }
+    return allowedPrefixes.some((prefix) => mimeType.startsWith(prefix));
+};
+
+const clampPercentage = (value: number, fallback: number) => {
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+const normalizeAnalysisMetrics = (value: AnalysisMetrics | undefined, fallback: AnalysisMetrics): AnalysisMetrics => {
+    if (!value) return fallback;
+    return {
+        perplexity: clampPercentage(value.perplexity, fallback.perplexity),
+        burstiness: clampPercentage(value.burstiness, fallback.burstiness),
+        similarityScore: clampPercentage(value.similarityScore, fallback.similarityScore),
+        aiProbability: clampPercentage(value.aiProbability, fallback.aiProbability),
+    };
+};
+
+const normalizeComparativeAnalysis = (rows: ComparativeRow[] | undefined, fallback: ComparativeRow[]) => {
+    if (!Array.isArray(rows) || rows.length === 0) {
+        return fallback;
+    }
+
+    return rows
+        .filter((row): row is ComparativeRow => Boolean(row && typeof row.metric === 'string'))
+        .map((row): ComparativeRow => ({
+            metric: row.metric,
+            observed: typeof row.observed === 'string' ? row.observed : 'N/A',
+            benchmark: typeof row.benchmark === 'string' ? row.benchmark : 'N/A',
+            status: row.status === 'Anomaly' ? 'Anomaly' : 'Normal',
+        }));
+};
+
+const normalizeResult = (value: string | undefined, fallback: 'Real' | 'Fake'): 'Real' | 'Fake' => {
+    return value === 'Fake' ? 'Fake' : value === 'Real' ? 'Real' : fallback;
+};
+
 // Real Detection Endpoint
-router.post('/detect', upload.single('file'), async (req, res) => {
+router.post('/detect', async (req, res) => {
     try {
+        await runSingleFileUpload(req, res);
         console.log("Received /detect request");
         console.log("Body:", req.body);
         console.log("File:", req.file ? req.file.originalname : "No file");
@@ -85,12 +163,18 @@ router.post('/detect', upload.single('file'), async (req, res) => {
             return res.status(400).json({ message: 'file is required for non-live scans' });
         }
 
+        if (req.file && !isLiveScanner && !isMimeTypeAllowed(fileType, req.file.mimetype)) {
+            return res.status(400).json({
+                message: `Unsupported file type "${req.file.mimetype}" for ${fileType.replace('_', ' ')} scans.`
+            });
+        }
+
         const fileName = req.file ? req.file.originalname : 'Media Scan';
 
         // Default Values (mock fallback)
         let isFake = Math.random() > 0.5;
         let confidence = Math.floor(Math.random() * 20) + 80;
-        let result = isFake ? 'Fake' : 'Real';
+        let result: 'Real' | 'Fake' = isFake ? 'Fake' : 'Real';
         let analysis: AnalysisMetrics = {
             perplexity: Math.floor(Math.random() * 100),
             burstiness: Math.floor(Math.random() * 100),
@@ -181,11 +265,13 @@ router.post('/detect', upload.single('file'), async (req, res) => {
                     throw new Error('Invalid JSON returned by Gemini');
                 }
 
-                result = json.result === 'Fake' ? 'Fake' : 'Real';
-                confidence = typeof json.confidenceScore === 'number' ? json.confidenceScore : confidence;
-                analysis = json.analysis || analysis;
+                result = normalizeResult(json.result, result);
+                confidence = typeof json.confidenceScore === 'number'
+                    ? clampPercentage(json.confidenceScore, confidence)
+                    : confidence;
+                analysis = normalizeAnalysisMetrics(json.analysis, analysis);
                 details = json.details || details;
-                comparative_analysis = json.comparative_analysis || [];
+                comparative_analysis = normalizeComparativeAnalysis(json.comparative_analysis, comparative_analysis);
                 console.log("Gemini analysis completed successfully");
 
             } catch (err) {
@@ -289,8 +375,9 @@ router.post('/detect', upload.single('file'), async (req, res) => {
 
     } catch (error) {
         console.error("Scan endpoint error:", error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        res.status(500).json({
+        const errorMessage = getUploadErrorMessage(error);
+        const statusCode = error instanceof multer.MulterError ? 400 : 500;
+        res.status(statusCode).json({
             message: `Analysis failed: ${errorMessage}. Please ensure the server is properly configured.`,
             details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
         });

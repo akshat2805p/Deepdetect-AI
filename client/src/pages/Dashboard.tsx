@@ -1,38 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, CheckCircle, AlertTriangle, FileText, Clock, Settings, Fingerprint, Activity, Loader2, Video, Music, Globe, BarChart2, PieChart as PieChartIcon } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertTriangle, FileText, Clock, Settings, Fingerprint, Activity, Loader2, Video, Music, Globe } from 'lucide-react';
 import axios from 'axios';
-import { getApiHostLabel, getWithApiFallback, postWithApiFallback, getGuestId } from '../services/api';
+import { getApiHostLabel, getWithApiFallback, postWithApiFallback, getGuestId, isApiUnavailableError } from '../services/api';
+import { createOfflineScan, getOfflineScanHistory, mergeScanHistory, saveOfflineScan, type ScanResult } from '../services/offlineScan';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis } from 'recharts';
-
-interface ScanResult {
-  _id: string;
-  title: string;
-  fileName: string;
-  result: 'Real' | 'Fake';
-  confidenceScore: number;
-  scanDate: string;
-  details?: string;
-  analysis?: {
-    perplexity: number;
-    burstiness: number;
-    similarityScore: number;
-    aiProbability: number;
-  };
-  comparative_analysis?: Array<{
-    metric: string;
-    observed: string;
-    benchmark: string;
-    status: string;
-  }>;
-  web_detection?: {
-    best_guess_labels: string[];
-    exact_matches: string[];
-    partial_matches: string[];
-    visually_similar: string[];
-    pages_with_matching_images: string[];
-  };
-}
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'upload' | 'video' | 'audio' | 'id_verify' | 'live_camera'>('upload');
@@ -57,11 +29,17 @@ const Dashboard: React.FC = () => {
   const user = { id: getGuestId(), name: 'Guest User' };
 
   const fetchHistory = useCallback(async () => {
+    const offlineHistory = getOfflineScanHistory(user.id);
     try {
       const { data } = await getWithApiFallback(`/scan/history/${user.id}`);
-      setHistory(data);
+      setHistory(mergeScanHistory(data, offlineHistory));
     } catch (error) {
+      if (isApiUnavailableError(error)) {
+        setHistory(offlineHistory);
+        return;
+      }
       console.error("Failed to fetch history", error);
+      setHistory(offlineHistory);
     }
   }, [user.id]);
 
@@ -71,14 +49,41 @@ const Dashboard: React.FC = () => {
       if (typeof serverMessage === 'string' && serverMessage.trim()) {
         return serverMessage;
       }
+      const responseText = typeof error.response?.data === 'string' ? error.response.data : '';
+      const responseContentType = String(error.response?.headers?.['content-type'] || '');
+      const looksLikeProxyFailure = Boolean(
+        error.response?.status === 500 &&
+        !serverMessage &&
+        (
+          /proxy|econnrefused|localhost:5002|127\.0\.0\.1:5002|socket hang up/i.test(responseText) ||
+          responseContentType.includes('text/html')
+        )
+      );
+      if (looksLikeProxyFailure) {
+        return `Cannot reach scan API via ${getApiHostLabel()}. Start the app with \`npm run dev\` at the project root, or make sure the server is running on port 5002.`;
+      }
       return error.response?.status
         ? `Analysis failed (${error.response.status}).`
-        : `Cannot reach scan API at ${getApiHostLabel()}. If you are running locally, make sure the server is on port 5002.`;
+        : `Cannot reach scan API via ${getApiHostLabel()}. Start the app with \`npm run dev\` at the project root, or make sure the server is running on port 5002.`;
     }
     if (error instanceof Error && error.message) {
       return error.message;
     }
     return 'Analysis failed. Please try again.';
+  };
+
+  const extractFallbackReason = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const serverMessage = error.response?.data?.message;
+      if (typeof serverMessage === 'string' && serverMessage.trim()) {
+        return serverMessage;
+      }
+      return error.response?.status ? `HTTP ${error.response.status}` : 'API unavailable';
+    }
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return 'Unknown API failure';
   };
 
   useEffect(() => {
@@ -235,6 +240,26 @@ const Dashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Scan failed", error);
+      if (axios.isAxiosError(error) || isApiUnavailableError(error)) {
+        const offlineResult = createOfflineScan({
+          userId: user.id,
+          fileType: activeTab,
+          metadata,
+          file,
+          hudData,
+          fallbackReason: extractFallbackReason(error),
+        });
+        saveOfflineScan(user.id, offlineResult);
+        setResult(offlineResult);
+        setHistory(getOfflineScanHistory(user.id));
+        setScanError('');
+        window.requestAnimationFrame(() => {
+          if (resultsRef.current) {
+            resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+        return;
+      }
       setScanError(resolveScanError(error));
     } finally {
       setLoading(false);
