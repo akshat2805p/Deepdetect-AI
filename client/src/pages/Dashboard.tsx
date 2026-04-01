@@ -4,7 +4,8 @@ import { UploadCloud, CheckCircle, AlertTriangle, FileText, Clock, Settings, Fin
 import axios from 'axios';
 import { getApiHostLabel, getWithApiFallback, postWithApiFallback, getGuestId, isApiUnavailableError } from '../services/api';
 import { createOfflineScan, getOfflineScanHistory, mergeScanHistory, saveOfflineScan, type ScanResult } from '../services/offlineScan';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, RadarChart, PolarGrid, PolarAngleAxis, Radar, YAxis } from 'recharts';
+import ForensicMetrics from '../components/ForensicMetrics';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'upload' | 'video' | 'audio' | 'id_verify' | 'live_camera'>('upload');
@@ -500,17 +501,44 @@ const Dashboard: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
               >
-                {/* Result Card */}
-                <div className="col-span-1 lg:col-span-2 bg-neutral-900 border border-neutral-800 p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden">
-                  <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${result.result === 'Fake' ? 'from-red-600/20' : 'from-green-600/20'} to-transparent rounded-bl-full`} />
-                  <div>
-                    <h3 className="text-gray-400 text-sm uppercase font-bold tracking-wider mb-2">Analysis Result</h3>
-                    <div className="flex items-center gap-4">
-                      {result.result === 'Fake' ? <AlertTriangle className="w-12 h-12 text-red-500" /> : <CheckCircle className="w-12 h-12 text-green-500" />}
-                      <span className="text-4xl font-bold text-white">{result.result === 'Fake' ? 'Synthetic Media' : 'Authentic Media'}</span>
+                {/* Media Type Summary */}
+                <div className="col-span-1 lg:col-span-2 flex flex-col gap-4">
+                  <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl flex items-center gap-4 mb-2">
+                    {/* Media type icon and text */}
+                    {(() => {
+                      switch (activeTab) {
+                        case 'upload':
+                          return <CheckCircle className="w-10 h-10 text-green-400" />;
+                        case 'video':
+                          return <Video className="w-10 h-10 text-blue-400" />;
+                        case 'audio':
+                          return <Music className="w-10 h-10 text-purple-400" />;
+                        case 'id_verify':
+                          return <Fingerprint className="w-10 h-10 text-yellow-400" />;
+                        case 'live_camera':
+                          return <Activity className="w-10 h-10 text-cyan-400" />;
+                        default:
+                          return <CheckCircle className="w-10 h-10 text-gray-400" />;
+                      }
+                    })()}
+                    <div>
+                      <div className="text-lg font-bold text-white">
+                        {(() => {
+                          switch (activeTab) {
+                            case 'upload': return 'This is an image/photo.';
+                            case 'video': return 'This is a video frame.';
+                            case 'audio': return 'This is an audio file.';
+                            case 'id_verify': return 'This is an ID document.';
+                            case 'live_camera': return 'This is a live camera capture.';
+                            default: return 'Media type detected.';
+                          }
+                        })()}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">Analysis Result: <span className={result.result === 'Fake' ? 'text-red-400' : 'text-green-400'}>{result.result === 'Fake' ? 'Synthetic Media' : 'Authentic Media'}</span></div>
                     </div>
                   </div>
-                  <div className="mt-8">
+                  {/* Confidence Score Bar */}
+                  <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl flex flex-col">
                     <div className="flex justify-between items-end mb-2">
                       <span className="text-gray-400">Confidence Score</span>
                       <span className="text-2xl font-bold text-white">{result.confidenceScore}%</span>
@@ -525,44 +553,60 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Pie Chart */}
-                <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center relative">
-                  <h4 className="absolute top-4 left-4 text-xs font-bold text-gray-500 uppercase">Authenticity Split</h4>
-                  <div className="w-full h-[160px] mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={PIE_DATA} innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value">
-                          {PIE_DATA.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '8px', border: 'none' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex gap-4 text-xs text-gray-400 mt-[-10px]">
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Real</span>
-                    <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> Synthetic</span>
-                  </div>
+
+                {/* Main Forensic Metrics (Pie + Bar) */}
+                <div className="col-span-1 lg:col-span-2">
+                  <ForensicMetrics result={result} />
                 </div>
 
-                {/* Bar Chart */}
-                <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl">
-                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Signal Metrics</h4>
-                  <div className="w-full h-[140px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={[
-                        { name: 'PPL', value: result.analysis?.perplexity || 0 },
-                        { name: 'BST', value: result.analysis?.burstiness || 0 },
-                        { name: 'SIM', value: result.analysis?.similarityScore || 0 },
-                      ]}>
-                        <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                {/* Radar Chart for Expressions (if available) */}
+                {result.analysis?.expressions && (
+                  <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl flex flex-col items-center">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Expression Analysis</h4>
+                    <div className="w-full h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        {(() => {
+                          const expressions = result.analysis.expressions;
+                          const data = Object.keys(expressions).map(key => ({
+                            expression: key,
+                            value: Math.round(expressions[key] * 100)
+                          }));
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius={70} width={250} height={180} data={data}>
+                              <PolarGrid />
+                              <PolarAngleAxis dataKey="expression" tick={{ fill: '#fbbf24', fontSize: 12 }} />
+                              <Radar name="Expression" dataKey="value" stroke="#fbbf24" fill="#fde68a" fillOpacity={0.6} />
+                            </RadarChart>
+                          );
+                        })()}
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Horizontal Bar for Age/Gender (if available) */}
+                {result.analysis?.age || result.analysis?.gender ? (
+                  <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl flex flex-col items-center">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Demographic Analysis</h4>
+                    <div className="w-full h-[120px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        {(() => {
+                          const data = [];
+                          if (result.analysis?.age) data.push({ name: 'Age', value: Math.round(result.analysis.age) });
+                          if (result.analysis?.gender) data.push({ name: 'Gender', value: Math.round(result.analysis.gender * 100) });
+                          return (
+                            <BarChart layout="vertical" data={data} width={220} height={100}>
+                              <XAxis type="number" hide />
+                              <YAxis dataKey="name" type="category" tick={{ fill: '#fbbf24', fontSize: 12 }} />
+                              <Bar dataKey="value" fill="#fbbf24" barSize={18} radius={[8, 8, 8, 8]} />
+                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '8px', border: 'none' }} />
+                            </BarChart>
+                          );
+                        })()}
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Comparative Analysis Table */}
                 <div className="col-span-1 lg:col-span-4 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
@@ -581,16 +625,51 @@ const Dashboard: React.FC = () => {
                       </thead>
                       <tbody>
                         {result.comparative_analysis?.map((item, index) => (
-                          <tr key={index} className="border-b border-neutral-800 hover:bg-neutral-800">
-                            <td className="px-4 py-3 font-medium text-white">{item.metric}</td>
-                            <td className="px-4 py-3 text-yellow-400">{item.observed}</td>
-                            <td className="px-4 py-3">{item.benchmark}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded text-xs font-bold ${item.status === 'Anomaly' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
-                                {item.status}
-                              </span>
-                            </td>
-                          </tr>
+                          <React.Fragment key={index}>
+                            <tr className="border-b border-neutral-800 hover:bg-neutral-800">
+                              <td className="px-4 py-3 font-medium text-white">{item.metric}</td>
+                              <td className="px-4 py-3 text-yellow-400">{item.observed}</td>
+                              <td className="px-4 py-3">{item.benchmark}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded text-xs font-bold ${item.status === 'Anomaly' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Expandable details row */}
+                            <tr className="bg-neutral-950 border-b border-neutral-900">
+                              <td colSpan={4} className="px-6 py-3 text-xs text-gray-400">
+                                <details>
+                                  <summary className="cursor-pointer text-yellow-400 font-semibold">Details & Math</summary>
+                                  <div className="mt-2 space-y-2">
+                                    {/* Raw pattern data if available */}
+                                    {item.rawData && (
+                                      <div>
+                                        <span className="font-bold text-white">Raw Data:</span>
+                                        <pre className="bg-black/60 rounded p-2 text-gray-300 overflow-x-auto text-xs mt-1 max-h-32">{JSON.stringify(item.rawData, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                    {/* Math/statistics explanation */}
+                                    <div>
+                                      <span className="font-bold text-white">Metric Explanation:</span>
+                                      <div className="mt-1">
+                                        {item.metric === 'Pattern Consistency' && (
+                                          <>
+                                            <div>Pattern Consistency measures the uniformity of detected features or signals across the media. A "Uniform" value means the detected patterns are consistent, while "Variable" indicates more randomness or possible tampering.</div>
+                                            <div className="mt-1">Math: Typically calculated using statistical variance or entropy of extracted features. Lower variance = more uniformity.</div>
+                                          </>
+                                        )}
+                                        {/* Add more metric explanations as needed */}
+                                        {item.metric !== 'Pattern Consistency' && (
+                                          <div>No detailed explanation available for this metric yet.</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </details>
+                              </td>
+                            </tr>
+                          </React.Fragment>
                         ))}
                         {(!result.comparative_analysis || result.comparative_analysis.length === 0) && (
                           <tr>
@@ -664,6 +743,54 @@ const Dashboard: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Deep-dive: Face Landmark Polygons & Math (Live Camera Only) */}
+                {activeTab === 'live_camera' && hudData && (
+                  <div className="col-span-1 md:col-span-2 lg:col-span-4 bg-neutral-900 border border-cyan-700/40 p-8 rounded-2xl mt-6">
+                    <h3 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-cyan-400" /> Face Landmark Polygons & Math
+                    </h3>
+                    <details open className="mb-4">
+                      <summary className="cursor-pointer text-cyan-300 font-semibold text-base">Show Landmark Coordinates</summary>
+                      <div className="mt-2 text-xs text-gray-200 bg-black/40 rounded p-3 max-h-64 overflow-auto">
+                        {hudData && hudData.detection && hudData.detection.box && (
+                          <>
+                            <div className="mb-2"><span className="font-bold text-cyan-300">Detection Box:</span> x: {Math.round(hudData.detection.box.x)}, y: {Math.round(hudData.detection.box.y)}</div>
+                          </>
+                        )}
+                        {hudData && hudData.landmarks && Array.isArray(hudData.landmarks) && (
+                          <>
+                            <div className="mb-2 font-bold text-cyan-300">Landmark Points (x, y):</div>
+                            <ol className="list-decimal ml-6">
+                              {hudData.landmarks.map((pt, idx) => (
+                                <li key={idx}>({Math.round(pt.x)}, {Math.round(pt.y)})</li>
+                              ))}
+                            </ol>
+                          </>
+                        )}
+                        {!hudData.landmarks && <div className="italic text-gray-400">Landmark data not available for this scan.</div>}
+                      </div>
+                    </details>
+                    <details>
+                      <summary className="cursor-pointer text-cyan-300 font-semibold text-base">Math & Statistics Behind Landmarks</summary>
+                      <div className="mt-2 text-xs text-gray-200 bg-black/40 rounded p-3">
+                        <div className="mb-2">
+                          <span className="font-bold text-cyan-300">What are Face Landmarks?</span> Face landmarks are key points (polygons) detected on facial features such as the jawline, eyes, nose, and mouth. Each point has (x, y) coordinates in the image.
+                        </div>
+                        <div className="mb-2">
+                          <span className="font-bold text-cyan-300">How are they used?</span> Distances, angles, and ratios between these points are used to analyze facial structure, detect expressions, and assess authenticity. For example, the distance between the eyes or the angle of the jawline can be compared to known human averages.
+                        </div>
+                        <div>
+                          <span className="font-bold text-cyan-300">Math Example:</span> The Euclidean distance between two points (x1, y1) and (x2, y2) is:<br />
+                          <span className="bg-neutral-800 text-yellow-300 px-2 py-1 rounded">distance = sqrt((x2 - x1)^2 + (y2 - y1)^2)</span>
+                        </div>
+                        <div className="mt-2">
+                          <span className="font-bold text-cyan-300">Statistical Analysis:</span> By analyzing the variance and ratios of these distances across frames, the system can detect anomalies or manipulations.
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                )}
 
               </motion.div>
             )}
